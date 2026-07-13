@@ -1,15 +1,38 @@
-import { MatchResult } from '@/types';
+import type { MatchResult } from '@spoke/shared';
 
-function csvCell(value: string): string {
-  return `"${value.replace(/"/g, '""')}"`;
+function csvCell(value: string | number | undefined | null): string {
+  if (value === undefined || value === null) return '""';
+  return `"${String(value).replace(/"/g, '""')}"`;
 }
 
-export function exportToSpokeCsv(results: MatchResult[]): void {
+export function formatAddress(match: NonNullable<MatchResult['match']>): string {
+  return [match.addressLine1, match.city].filter(Boolean).join(', ');
+}
+
+export function exportToSpokeCsv(results: MatchResult[], includeAllColumns = false): void {
   const BOM = '﻿';
-  const header = 'Name,Address Line 1,Notes';
+  const header = includeAllColumns
+    ? 'Company Name,Address Line 1,City,State,Country,Notes,Latitude,Longitude'
+    : 'Company Name,Address Line 1,City';
+
   const rows = results
     .filter((r) => r.match !== null)
-    .map((r) => [csvCell(r.match!.name), csvCell(r.match!.address), ''].join(','));
+    .map((r) => {
+      const m = r.match!;
+      if (includeAllColumns) {
+        return [
+          csvCell(m.name),
+          csvCell(m.addressLine1),
+          csvCell(m.city),
+          csvCell(m.state),
+          csvCell(m.country),
+          csvCell(m.notes),
+          csvCell(m.lat),
+          csvCell(m.lng),
+        ].join(',');
+      }
+      return [csvCell(m.name), csvCell(m.addressLine1), csvCell(m.city)].join(',');
+    });
 
   const csv = BOM + [header, ...rows].join('\r\n');
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
@@ -25,7 +48,8 @@ export function exportToSpokeCsv(results: MatchResult[]): void {
 
 export function copyAddresses(results: MatchResult[]): string {
   return results
-    .filter((r) => r.match?.address)
-    .map((r) => r.match!.address)
+    .filter((r) => r.match !== null)
+    .map((r) => formatAddress(r.match!))
+    .filter(Boolean)
     .join('\n');
 }

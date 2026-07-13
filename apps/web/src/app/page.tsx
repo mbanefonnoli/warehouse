@@ -1,10 +1,11 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Customer, Language, MatchResult, MasterListConfig } from '@/types';
-import { loadMasterList } from '@/lib/storage';
+import { matchName } from '@spoke/shared';
+import type { Customer, MatchResult } from '@spoke/shared';
+import type { ImportConfig, Language, Settings } from '@/types';
+import { loadMasterList, loadSettings } from '@/lib/storage';
 import { sanitizeWhatsAppPaste } from '@/lib/sanitize';
-import { matchNames } from '@/lib/matcher';
 import { en, ro } from '@/lib/strings';
 import LanguageToggle from '@/components/LanguageToggle';
 import FileUpload from '@/components/FileUpload';
@@ -17,33 +18,47 @@ export default function Home() {
   const s = lang === 'en' ? en : ro;
 
   const [customers, setCustomers] = useState<Customer[]>([]);
-  const [cachedConfig, setCachedConfig] = useState<MasterListConfig | null>(null);
+  const [importConfig, setImportConfig] = useState<ImportConfig | null>(null);
+  const [settings, setSettings] = useState<Settings>({
+    matchSensitivity: 'normal',
+    stripCompanySuffixes: true,
+    includeAllColumns: false,
+  });
   const [results, setResults] = useState<MatchResult[]>([]);
 
   useEffect(() => {
     const saved = loadMasterList();
     if (saved) {
       setCustomers(saved.customers);
-      setCachedConfig(saved.config);
+      setImportConfig(saved.config);
     }
+    setSettings(loadSettings());
   }, []);
 
-  function handleListReady(list: Customer[], config: MasterListConfig) {
+  function handleFileReady(list: Customer[], config: ImportConfig) {
     setCustomers(list);
-    setCachedConfig(config);
+    setImportConfig(config);
     setResults([]);
   }
 
-  function handleListCleared() {
+  function handleCleared() {
     setCustomers([]);
-    setCachedConfig(null);
+    setImportConfig(null);
+    setResults([]);
+  }
+
+  function handleSettingsChange(patch: Partial<Settings>) {
+    setSettings((prev) => ({ ...prev, ...patch }));
     setResults([]);
   }
 
   function handleMatch(raw: string) {
     if (!raw.trim() || customers.length === 0) return;
     const names = sanitizeWhatsAppPaste(raw);
-    const matched = matchNames(names, customers);
+    const matched = matchName(names, customers, {
+      sensitivity: settings.matchSensitivity,
+      stripSuffixes: settings.stripCompanySuffixes,
+    });
     setResults(matched);
   }
 
@@ -51,9 +66,9 @@ export default function Home() {
     setResults((prev) =>
       prev.map((r) =>
         r.inputName === inputName
-          ? { ...r, match: customer, status: 'green', confidence: 1, alternatives: [] }
-          : r
-      )
+          ? { ...r, match: customer, status: 'green', confidence: 1, alternatives: [], ambiguityReason: undefined }
+          : r,
+      ),
     );
   }
 
@@ -72,17 +87,23 @@ export default function Home() {
       <main className="mx-auto max-w-5xl space-y-6 px-4 py-8">
         <FileUpload
           s={s}
-          cachedConfig={cachedConfig}
-          cachedCount={customers.length}
-          onListReady={handleListReady}
-          onListCleared={handleListCleared}
+          customers={customers}
+          importConfig={importConfig}
+          settings={settings}
+          onFileReady={handleFileReady}
+          onCleared={handleCleared}
+          onSettingsChange={handleSettingsChange}
         />
 
         <NameInput s={s} onMatch={handleMatch} disabled={customers.length === 0} />
 
         {results.length > 0 && (
           <>
-            <ExportBar results={results} s={s} />
+            <ExportBar
+              results={results}
+              includeAllColumns={settings.includeAllColumns}
+              s={s}
+            />
             <MatchTable
               results={results}
               allCustomers={customers}

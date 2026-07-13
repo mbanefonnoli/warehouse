@@ -17,8 +17,10 @@ coverage
 .next/
 out/
 
-# build output
-dist
+# build output (extension/dist is committed intentionally so it can be loaded unpacked without a build step)
+apps/server/dist
+packages/shared/dist
+apps/web/.next
 build
 
 # misc
@@ -44,6 +46,4 @@ next-env.d.ts
 # vite
 .vite
 
-# extension build
-apps/extension/dist
 *.zip

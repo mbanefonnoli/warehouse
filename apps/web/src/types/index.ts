@@ -1,23 +1,15 @@
-export interface Customer {
-  id: string;
-  name: string;
-  address: string;
-  sourceRow: number;
-}
+export type { Customer, MatchResult, MatchOptions } from '@spoke/shared';
 
-export interface MatchResult {
-  inputName: string;
-  match: Customer | null;
-  confidence: number;
-  status: 'green' | 'yellow' | 'red';
-  alternatives: Customer[];
-}
-
-export interface MasterListConfig {
-  nameColumn: string;
-  addressColumn: string;
-  sheetName: string;
+export interface ImportConfig {
   fileName: string;
+  lastUpdated: string; // ISO date string
+  count: number;
+}
+
+export interface Settings {
+  matchSensitivity: 'strict' | 'normal' | 'loose';
+  stripCompanySuffixes: boolean;
+  includeAllColumns: boolean;
 }
 
 export type Language = 'en' | 'ro';
@@ -25,16 +17,30 @@ export type Language = 'en' | 'ro';
 export interface Strings {
   title: string;
   subtitle: string;
-  uploadTitle: string;
-  uploadSubtitle: string;
+  // Locations section
+  locationsTitle: string;
+  csvCallout: string;
+  updateFile: string;
+  clearDatabase: string;
+  lastUpdated: string;
+  locationsLoaded: string; // use {n} as placeholder for count
+  noFileLoaded: string;
   uploadHint: string;
-  selectSheet: string;
-  mapColumns: string;
-  nameColumn: string;
-  addressColumn: string;
-  saveList: string;
-  listCached: string;
-  clearList: string;
+  previewCompanyName: string;
+  previewAddress: string;
+  previewCity: string;
+  previewNotes: string;
+  // Matching section
+  matchingSection: string;
+  matchSensitivityLabel: string;
+  sensStrict: string;
+  sensNormal: string;
+  sensLoose: string;
+  stripSuffixesLabel: string;
+  // Export section
+  exportSection: string;
+  includeAllColumnsLabel: string;
+  // Input / match results
   inputTitle: string;
   inputPlaceholder: string;
   matchBtn: string;
@@ -51,4 +57,6 @@ export interface Strings {
   noMatch: string;
   pendingReview: string;
   rowCount: string;
+  yellowMultiLocation: string; // "{n} locations found — select one"
+  yellowFuzzy: string;
 }
