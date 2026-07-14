@@ -11,7 +11,7 @@ export const CSV_COLUMNS = [
   'Longitude',
 ] as const;
 
-function parseCSVLine(line: string): string[] {
+function parseCSVLine(line: string, delimiter: string): string[] {
   const cells: string[] = [];
   let current = '';
   let inQuotes = false;
@@ -24,7 +24,7 @@ function parseCSVLine(line: string): string[] {
       } else {
         inQuotes = !inQuotes;
       }
-    } else if (ch === ',' && !inQuotes) {
+    } else if (ch === delimiter && !inQuotes) {
       cells.push(current);
       current = '';
     } else {
@@ -40,53 +40,60 @@ export function importCsv(file: File): Promise<Customer[]> {
     const reader = new FileReader();
     reader.onload = (e) => {
       try {
-        const text = e.target!.result as string;
-        const lines = text.split(/\r?\n/).filter((l) => l.trim());
+        // Strip UTF-8 BOM if present — it corrupts the first column header.
+        const raw = (e.target!.result as string).replace(/^﻿/, '');
+        const lines = raw.split(/\r?\n/).filter((l) => l.trim());
         if (lines.length < 2) { resolve([]); return; }
 
-        const headers = parseCSVLine(lines[0]);
+        // Auto-detect delimiter: Romanian-locale Excel uses semicolons.
+        const headerLine = lines[0];
+        const commas     = (headerLine.match(/,/g) ?? []).length;
+        const semicolons = (headerLine.match(/;/g) ?? []).length;
+        const delimiter  = semicolons > commas ? ';' : ',';
 
-        // Normalize a header: lowercase, collapse non-alphanumeric runs to a space.
+        const headers = parseCSVLine(headerLine, delimiter);
+
+        // Normalize: lowercase, collapse non-alphanumeric runs to a space.
         const norm = (s: string) =>
           s.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
 
-        // Find the first header whose normalized form contains any of the given keywords.
+        // Return the index of the first header containing any of the given keywords.
         const col = (...keywords: string[]) =>
           headers.findIndex((h) => {
             const n = norm(h);
             return keywords.some((kw) => n === norm(kw) || n.includes(norm(kw)));
           });
 
-        const nameIdx = col('company name', 'company', 'name');
+        const nameIdx    = col('company name', 'company', 'denumire', 'nume firma', 'name');
         if (nameIdx === -1) throw new Error(
           'Could not find a company/name column. ' +
           `Headers found: ${headers.join(', ')}`
         );
 
-        const addrIdx  = col('address line 1', 'addres line 1', 'addr line 1', 'address 1', 'line 1');
-        const cityIdx  = col('city', 'town');
-        const stateIdx = col('state', 'province', 'region', 'county');
-        const countryIdx = col('country');
-        const notesIdx = col('notes', 'note');
-        const latIdx   = col('latitude', 'lat');
-        const lngIdx   = col('longitude', 'lng', 'lon', 'long');
+        const addrIdx    = col('address line 1', 'addres line 1', 'addr line 1', 'address 1', 'adresa', 'strada', 'line 1');
+        const cityIdx    = col('city', 'oras', 'localitate', 'town');
+        const stateIdx   = col('state', 'judet', 'provincia', 'province', 'region');
+        const countryIdx = col('country', 'tara');
+        const notesIdx   = col('notes', 'note', 'observatii', 'mentiuni');
+        const latIdx     = col('latitude', 'latitudine', 'lat');
+        const lngIdx     = col('longitude', 'longitudine', 'lng', 'lon', 'long');
 
         const customers: Customer[] = lines
           .slice(1)
           .reduce<Customer[]>((acc, line, idx) => {
-            const cells = parseCSVLine(line);
+            const cells = parseCSVLine(line, delimiter);
             const name = cells[nameIdx]?.trim();
             if (!name) return acc;
-            const latRaw = latIdx >= 0 ? parseFloat(cells[latIdx]) : NaN;
-            const lngRaw = lngIdx >= 0 ? parseFloat(cells[lngIdx]) : NaN;
+            const latRaw = latIdx >= 0 ? parseFloat(cells[latIdx]!.replace(',', '.')) : NaN;
+            const lngRaw = lngIdx >= 0 ? parseFloat(cells[lngIdx]!.replace(',', '.')) : NaN;
             const c: Customer = {
               id: `c_${idx}`,
               name,
-              ...(addrIdx >= 0 && cells[addrIdx]?.trim() && { addressLine1: cells[addrIdx].trim() }),
-              ...(cityIdx >= 0 && cells[cityIdx]?.trim() && { city: cells[cityIdx].trim() }),
-              ...(stateIdx >= 0 && cells[stateIdx]?.trim() && { state: cells[stateIdx].trim() }),
-              ...(countryIdx >= 0 && cells[countryIdx]?.trim() && { country: cells[countryIdx].trim() }),
-              ...(notesIdx >= 0 && cells[notesIdx]?.trim() && { notes: cells[notesIdx].trim() }),
+              ...(addrIdx    >= 0 && cells[addrIdx]?.trim()    && { addressLine1: cells[addrIdx]!.trim() }),
+              ...(cityIdx    >= 0 && cells[cityIdx]?.trim()    && { city:         cells[cityIdx]!.trim() }),
+              ...(stateIdx   >= 0 && cells[stateIdx]?.trim()   && { state:        cells[stateIdx]!.trim() }),
+              ...(countryIdx >= 0 && cells[countryIdx]?.trim() && { country:      cells[countryIdx]!.trim() }),
+              ...(notesIdx   >= 0 && cells[notesIdx]?.trim()   && { notes:        cells[notesIdx]!.trim() }),
               ...(!isNaN(latRaw) && { lat: latRaw }),
               ...(!isNaN(lngRaw) && { lng: lngRaw }),
             };

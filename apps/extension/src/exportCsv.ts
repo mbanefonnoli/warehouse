@@ -1,8 +1,9 @@
 import type { MatchResult } from '@spoke/shared';
 
 function csvCell(v: string | number | undefined | null): string {
-  if (v === undefined || v === null) return '""';
-  return `"${String(v).replace(/"/g, '""')}"`;
+  if (v === undefined || v === null) return '';
+  if (typeof v === 'number') return String(v);
+  return `"${v.replace(/"/g, '""')}"`;
 }
 
 export function formatAddress(match: NonNullable<MatchResult['match']>): string {
