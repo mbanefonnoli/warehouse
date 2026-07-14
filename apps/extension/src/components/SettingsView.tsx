@@ -93,6 +93,13 @@ export default function SettingsView({
                 {importConfig.count.toLocaleString()} locations
               </span>
               <span className="text-gray-400">·</span>
+              {(() => {
+                const gps = customers.filter((c) => c.lat != null && c.lng != null).length;
+                return gps === 0
+                  ? <span className="font-medium text-red-500">0 with GPS — re-import CSV</span>
+                  : <span className="text-gray-500">{gps.toLocaleString()} with GPS</span>;
+              })()}
+              <span className="text-gray-400">·</span>
               <span className="text-gray-500">
                 {new Date(importConfig.lastUpdated).toLocaleDateString()}
               </span>
@@ -140,7 +147,8 @@ export default function SettingsView({
                   <tr className="bg-gray-50 text-left text-[10px] font-medium uppercase tracking-wide text-gray-400">
                     <th className="px-2 py-1">Company</th>
                     <th className="px-2 py-1">City</th>
-                    <th className="px-2 py-1">Notes</th>
+                    <th className="px-2 py-1">Lat</th>
+                    <th className="px-2 py-1">Lng</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -148,7 +156,12 @@ export default function SettingsView({
                     <tr key={c.id} className="border-t border-gray-100">
                       <td className="px-2 py-1 font-medium">{c.name}</td>
                       <td className="px-2 py-1 text-gray-500">{c.city || '—'}</td>
-                      <td className="px-2 py-1 text-gray-500">{c.notes || '—'}</td>
+                      <td className={`px-2 py-1 ${c.lat != null ? 'text-gray-500' : 'font-medium text-red-400'}`}>
+                        {c.lat != null ? c.lat.toFixed(4) : '✗'}
+                      </td>
+                      <td className={`px-2 py-1 ${c.lng != null ? 'text-gray-500' : 'font-medium text-red-400'}`}>
+                        {c.lng != null ? c.lng.toFixed(4) : '✗'}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
