@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { CheckCircle2, AlertCircle, XCircle, Search, Copy, Check } from 'lucide-react';
 import { matchName, sanitizeWhatsAppPaste } from '@spoke/shared';
 import type { Customer, MatchResult } from '@spoke/shared';
 import type { Settings } from '../types';
 import { formatAddress, buildCsvText, buildAddressesText } from '../exportCsv';
+import { saveMatchSession, loadMatchSession, clearMatchSession } from '../storage';
 
 interface Props {
   customers: Customer[];
@@ -102,6 +103,24 @@ export default function MatchView({ customers, settings }: Props) {
   const [results, setResults] = useState<MatchResult[]>([]);
   const [copiedCsv, setCopiedCsv] = useState(false);
   const [copiedAddr, setCopiedAddr] = useState(false);
+  const hydrated = useRef(false);
+
+  // Restore session when popup opens
+  useEffect(() => {
+    loadMatchSession().then((session) => {
+      if (session) {
+        setInput(session.input);
+        setResults(session.results);
+      }
+      hydrated.current = true;
+    });
+  }, []);
+
+  // Persist session whenever input or results change (after initial load)
+  useEffect(() => {
+    if (!hydrated.current) return;
+    saveMatchSession(input, results);
+  }, [input, results]);
 
   const hasLocations = customers.length > 0;
   const unresolvedCount = results.filter((r) => r.match === null).length;
@@ -132,6 +151,19 @@ export default function MatchView({ customers, settings }: Props) {
     navigator.clipboard.writeText(text).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
+    });
+  }
+
+  function handleExportCsv() {
+    navigator.clipboard.writeText(buildCsvText(results, settings.includeAllColumns)).then(() => {
+      setCopiedCsv(true);
+      // Show "Copied!" briefly then clear for the next batch
+      setTimeout(() => {
+        setCopiedCsv(false);
+        setInput('');
+        setResults([]);
+        clearMatchSession();
+      }, 1500);
     });
   }
 
@@ -233,7 +265,7 @@ export default function MatchView({ customers, settings }: Props) {
               </button>
               <button
                 disabled={!canExport}
-                onClick={() => copy(buildCsvText(results, settings.includeAllColumns), setCopiedCsv)}
+                onClick={handleExportCsv}
                 className="flex items-center gap-1 rounded bg-[#1D9E75] px-2 py-1 text-[10px] font-medium text-white hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
               >
                 {copiedCsv ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}

@@ -1,4 +1,4 @@
-import type { Customer } from '@spoke/shared';
+import type { Customer, MatchResult } from '@spoke/shared';
 import type { ImportConfig, Settings } from './types';
 import { DEFAULT_SETTINGS } from './types';
 
@@ -37,4 +37,22 @@ export async function loadSettings(): Promise<Settings> {
   const result = await store.get(SETTINGS_KEY);
   if (!result[SETTINGS_KEY]) return DEFAULT_SETTINGS;
   return { ...DEFAULT_SETTINGS, ...(result[SETTINGS_KEY] as Partial<Settings>) };
+}
+
+const SESSION_KEY = 'srb_match_session';
+
+export async function saveMatchSession(input: string, results: MatchResult[]): Promise<void> {
+  if (!store) return;
+  await store.set({ [SESSION_KEY]: { input, results } });
+}
+
+export async function loadMatchSession(): Promise<{ input: string; results: MatchResult[] } | null> {
+  if (!store) return null;
+  const r = await store.get(SESSION_KEY);
+  return (r[SESSION_KEY] as { input: string; results: MatchResult[] }) ?? null;
+}
+
+export async function clearMatchSession(): Promise<void> {
+  if (!store) return;
+  await store.remove(SESSION_KEY);
 }
