@@ -45,19 +45,31 @@ export function importCsv(file: File): Promise<Customer[]> {
         if (lines.length < 2) { resolve([]); return; }
 
         const headers = parseCSVLine(lines[0]);
-        const col = (name: string) =>
-          headers.findIndex((h) => h.trim().toLowerCase() === name.toLowerCase());
 
-        const nameIdx = col('Company Name');
-        if (nameIdx === -1) throw new Error('Missing "Company Name" column');
+        // Normalize a header: lowercase, collapse non-alphanumeric runs to a space.
+        const norm = (s: string) =>
+          s.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
 
-        const addrIdx = col('Address Line 1');
-        const cityIdx = col('City');
-        const stateIdx = col('State');
-        const countryIdx = col('Country');
-        const notesIdx = col('Notes');
-        const latIdx = col('Latitude');
-        const lngIdx = col('Longitude');
+        // Find the first header whose normalized form contains any of the given keywords.
+        const col = (...keywords: string[]) =>
+          headers.findIndex((h) => {
+            const n = norm(h);
+            return keywords.some((kw) => n === norm(kw) || n.includes(norm(kw)));
+          });
+
+        const nameIdx = col('company name', 'company', 'name');
+        if (nameIdx === -1) throw new Error(
+          'Could not find a company/name column. ' +
+          `Headers found: ${headers.join(', ')}`
+        );
+
+        const addrIdx  = col('address line 1', 'addres line 1', 'addr line 1', 'address 1', 'line 1');
+        const cityIdx  = col('city', 'town');
+        const stateIdx = col('state', 'province', 'region', 'county');
+        const countryIdx = col('country');
+        const notesIdx = col('notes', 'note');
+        const latIdx   = col('latitude', 'lat');
+        const lngIdx   = col('longitude', 'lng', 'lon', 'long');
 
         const customers: Customer[] = lines
           .slice(1)
