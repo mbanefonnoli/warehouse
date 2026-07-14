@@ -11,9 +11,10 @@ export function formatAddress(match: NonNullable<MatchResult['match']>): string 
 
 export function buildCsvText(results: MatchResult[], includeAllColumns = false): string {
   const BOM = '﻿';
+  // Latitude and Longitude are always included — Spoke needs them for map placement.
   const header = includeAllColumns
     ? 'Company Name,Address Line 1,City,State,Country,Notes,Latitude,Longitude'
-    : 'Company Name,Address Line 1,City';
+    : 'Company Name,Address Line 1,City,Latitude,Longitude';
 
   const rows = results
     .filter((r) => r.match !== null)
@@ -26,7 +27,10 @@ export function buildCsvText(results: MatchResult[], includeAllColumns = false):
           csvCell(m.lat), csvCell(m.lng),
         ].join(',');
       }
-      return [csvCell(m.name), csvCell(m.addressLine1), csvCell(m.city)].join(',');
+      return [
+        csvCell(m.name), csvCell(m.addressLine1), csvCell(m.city),
+        csvCell(m.lat), csvCell(m.lng),
+      ].join(',');
     });
 
   return BOM + [header, ...rows].join('\r\n');
