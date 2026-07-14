@@ -57,26 +57,39 @@ export function importCsv(file: File): Promise<Customer[]> {
         const norm = (s: string) =>
           s.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
 
-        // Return the index of the first header containing any of the given keywords.
-        const col = (...keywords: string[]) =>
+        // Substring match — keyword can appear anywhere in the header.
+        // Safe for long keywords (e.g. "company name") where false positives are unlikely.
+        const colIncludes = (...keywords: string[]) =>
           headers.findIndex((h) => {
             const n = norm(h);
             return keywords.some((kw) => n === norm(kw) || n.includes(norm(kw)));
           });
 
-        const nameIdx    = col('company name', 'company', 'denumire', 'nume firma', 'name');
+        // Prefix match — header must START with the keyword.
+        // Used for short keywords like "lat"/"lon" that appear inside many Romanian words
+        // (e.g. "relatie", "plata") and would cause false positives with substring matching.
+        const colPrefix = (...keywords: string[]) =>
+          headers.findIndex((h) => {
+            const n = norm(h);
+            return keywords.some((kw) => {
+              const nkw = norm(kw);
+              return n === nkw || n.startsWith(nkw);
+            });
+          });
+
+        const nameIdx    = colIncludes('company name', 'company', 'denumire', 'nume firma', 'name');
         if (nameIdx === -1) throw new Error(
           'Could not find a company/name column. ' +
           `Headers found: ${headers.join(', ')}`
         );
 
-        const addrIdx    = col('address line 1', 'addres line 1', 'addr line 1', 'address 1', 'adresa', 'strada', 'line 1');
-        const cityIdx    = col('city', 'oras', 'localitate', 'town');
-        const stateIdx   = col('state', 'judet', 'provincia', 'province', 'region');
-        const countryIdx = col('country', 'tara');
-        const notesIdx   = col('notes', 'note', 'observatii', 'mentiuni');
-        const latIdx     = col('latitude', 'latitutde', 'latitudine', 'lat');
-        const lngIdx     = col('longitude', 'longitutde', 'longitudine', 'lng', 'lon', 'long');
+        const addrIdx    = colIncludes('address line 1', 'addres line 1', 'addr line 1', 'address 1', 'adresa', 'strada', 'line 1');
+        const cityIdx    = colIncludes('city', 'oras', 'localitate', 'town');
+        const stateIdx   = colIncludes('state', 'judet', 'provincia', 'province', 'region');
+        const countryIdx = colIncludes('country', 'tara');
+        const notesIdx   = colIncludes('notes', 'note', 'observatii', 'mentiuni');
+        const latIdx     = colPrefix('latitude', 'latitutde', 'latitudine', 'lat');
+        const lngIdx     = colPrefix('longitude', 'longitutde', 'longitudine', 'lng', 'lon', 'long');
 
         const customers: Customer[] = lines
           .slice(1)
