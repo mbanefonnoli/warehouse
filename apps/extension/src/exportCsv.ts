@@ -39,3 +39,17 @@ export function buildAddressesText(results: MatchResult[]): string {
     .filter(Boolean)
     .join('\n');
 }
+
+export function downloadCsvFile(results: MatchResult[], includeAllColumns = false): void {
+  const text = buildCsvText(results, includeAllColumns);
+  const blob = new Blob([text], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const date = new Date().toISOString().slice(0, 10);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `spoke-routes-${date}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}

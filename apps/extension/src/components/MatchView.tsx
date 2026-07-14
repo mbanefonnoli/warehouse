@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
-import { CheckCircle2, AlertCircle, XCircle, Search, Copy, Check } from 'lucide-react';
+import { CheckCircle2, AlertCircle, XCircle, Search, Copy, Check, Download } from 'lucide-react';
 import { matchName, sanitizeWhatsAppPaste } from '@spoke/shared';
 import type { Customer, MatchResult } from '@spoke/shared';
 import type { Settings } from '../types';
-import { formatAddress, buildCsvText, buildAddressesText } from '../exportCsv';
+import { formatAddress, buildCsvText, buildAddressesText, downloadCsvFile } from '../exportCsv';
 import { saveMatchSession, loadMatchSession, clearMatchSession } from '../storage';
 
 interface Props {
@@ -103,6 +103,7 @@ export default function MatchView({ customers, settings }: Props) {
   const [results, setResults] = useState<MatchResult[]>([]);
   const [copiedCsv, setCopiedCsv] = useState(false);
   const [copiedAddr, setCopiedAddr] = useState(false);
+  const [downloaded, setDownloaded] = useState(false);
   const hydrated = useRef(false);
 
   // Restore session when popup opens
@@ -157,7 +158,6 @@ export default function MatchView({ customers, settings }: Props) {
   function handleExportCsv() {
     navigator.clipboard.writeText(buildCsvText(results, settings.includeAllColumns)).then(() => {
       setCopiedCsv(true);
-      // Show "Copied!" briefly then clear for the next batch
       setTimeout(() => {
         setCopiedCsv(false);
         setInput('');
@@ -165,6 +165,17 @@ export default function MatchView({ customers, settings }: Props) {
         clearMatchSession();
       }, 1500);
     });
+  }
+
+  function handleDownloadCsv() {
+    downloadCsvFile(results, settings.includeAllColumns);
+    setDownloaded(true);
+    setTimeout(() => {
+      setDownloaded(false);
+      setInput('');
+      setResults([]);
+      clearMatchSession();
+    }, 1500);
   }
 
   return (
@@ -266,10 +277,18 @@ export default function MatchView({ customers, settings }: Props) {
               <button
                 disabled={!canExport}
                 onClick={handleExportCsv}
+                className="flex items-center gap-1 rounded border border-gray-200 bg-white px-2 py-1 text-[10px] text-gray-600 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                {copiedCsv ? <Check className="h-3 w-3 text-green-500" /> : <Copy className="h-3 w-3" />}
+                {copiedCsv ? 'Copied!' : 'Copy CSV'}
+              </button>
+              <button
+                disabled={!canExport}
+                onClick={handleDownloadCsv}
                 className="flex items-center gap-1 rounded bg-[#1D9E75] px-2 py-1 text-[10px] font-medium text-white hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
               >
-                {copiedCsv ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
-                {copiedCsv ? 'Copied!' : 'Copy CSV'}
+                {downloaded ? <Check className="h-3 w-3" /> : <Download className="h-3 w-3" />}
+                {downloaded ? 'Saved!' : 'Export CSV'}
               </button>
             </div>
           </div>
