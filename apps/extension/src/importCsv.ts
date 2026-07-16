@@ -88,7 +88,7 @@ export function importCsv(file: File): Promise<Customer[]> {
         const stateIdx   = colIncludes('state', 'judet', 'provincia', 'province', 'region');
         const countryIdx = colIncludes('country', 'tara');
         const notesIdx   = colIncludes('notes', 'note', 'observatii', 'mentiuni');
-        const latIdx     = colPrefix('latitude', 'latitutde', 'latitudine', 'lat');
+        const latIdx     = colPrefix('latitude', 'latitutde', 'latitudine');
         const lngIdx     = colPrefix('longitude', 'longitutde', 'longitudine', 'lng', 'lon', 'long');
 
         const customers: Customer[] = lines
