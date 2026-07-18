@@ -1,10 +1,13 @@
 {
   "manifest_version": 3,
   "name": "Spoke Route Bridge",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Matches WhatsApp customer names to the master list and syncs Spoke dispatch routes.",
   "action": {
     "default_popup": "index.html"
   },
-  "permissions": ["storage"]
+  "background": {
+    "service_worker": "background.js"
+  },
+  "permissions": ["storage", "contextMenus"]
 }

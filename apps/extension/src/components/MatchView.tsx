@@ -4,7 +4,7 @@ import { matchName, sanitizeWhatsAppPaste } from '@spoke/shared';
 import type { Customer, MatchResult } from '@spoke/shared';
 import type { Settings } from '../types';
 import { formatAddress, buildCsvText, buildAddressesText, downloadCsvFile } from '../exportCsv';
-import { saveMatchSession, loadMatchSession, clearMatchSession } from '../storage';
+import { saveMatchSession, loadMatchSession, clearMatchSession, loadPendingNames, clearPendingNames } from '../storage';
 
 interface Props {
   customers: Customer[];
@@ -106,13 +106,24 @@ export default function MatchView({ customers, settings }: Props) {
   const [downloaded, setDownloaded] = useState(false);
   const hydrated = useRef(false);
 
-  // Restore session when popup opens
+  // Restore session and consume any names queued via right-click context menu
   useEffect(() => {
-    loadMatchSession().then((session) => {
-      if (session) {
-        setInput(session.input);
-        setResults(session.results);
+    Promise.all([loadMatchSession(), loadPendingNames()]).then(([session, pending]) => {
+      const baseInput = session?.input ?? '';
+      if (session?.results?.length) setResults(session.results);
+
+      if (pending.length > 0) {
+        const pendingBlock = pending.join('\n');
+        setInput(baseInput ? `${baseInput}\n${pendingBlock}` : pendingBlock);
+        void clearPendingNames();
+        // Clear the badge now that names are in the popup
+        if (typeof chrome !== 'undefined' && chrome.action) {
+          chrome.action.setBadgeText({ text: '' });
+        }
+      } else {
+        setInput(baseInput);
       }
+
       hydrated.current = true;
     });
   }, []);

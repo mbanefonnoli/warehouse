@@ -56,3 +56,16 @@ export async function clearMatchSession(): Promise<void> {
   if (!store) return;
   await store.remove(SESSION_KEY);
 }
+
+const PENDING_KEY = 'srb_pending_names';
+
+export async function loadPendingNames(): Promise<string[]> {
+  if (!store) return [];
+  const r = await store.get(PENDING_KEY);
+  return (Array.isArray(r[PENDING_KEY]) ? r[PENDING_KEY] : []) as string[];
+}
+
+export async function clearPendingNames(): Promise<void> {
+  if (!store) return;
+  await store.remove(PENDING_KEY);
+}
