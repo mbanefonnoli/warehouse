@@ -35,6 +35,68 @@ function parseCSVLine(line: string, delimiter: string): string[] {
   return cells.map((c) => c.trim());
 }
 
+// Turns a header row + data rows (already split into cells, whatever the source
+// format) into Customers. Shared by the CSV and XLSX import paths.
+export function customersFromRows(headerRow: string[], dataRows: string[][]): Customer[] {
+  // Normalize: lowercase, collapse non-alphanumeric runs to a space.
+  const norm = (s: string) =>
+    s.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+
+  // Substring match — keyword can appear anywhere in the header.
+  // Safe for long keywords (e.g. "company name") where false positives are unlikely.
+  const colIncludes = (...keywords: string[]) =>
+    headerRow.findIndex((h) => {
+      const n = norm(h);
+      return keywords.some((kw) => n === norm(kw) || n.includes(norm(kw)));
+    });
+
+  // Prefix match — header must START with the keyword.
+  // Used for short keywords like "lat"/"lon" that appear inside many Romanian words
+  // (e.g. "relatie", "plata") and would cause false positives with substring matching.
+  const colPrefix = (...keywords: string[]) =>
+    headerRow.findIndex((h) => {
+      const n = norm(h);
+      return keywords.some((kw) => {
+        const nkw = norm(kw);
+        return n === nkw || n.startsWith(nkw);
+      });
+    });
+
+  const nameIdx    = colIncludes('company name', 'company', 'denumire', 'nume firma', 'name');
+  if (nameIdx === -1) throw new Error(
+    'Could not find a company/name column. ' +
+    `Headers found: ${headerRow.join(', ')}`
+  );
+
+  const addrIdx    = colIncludes('address line 1', 'addres line 1', 'addr line 1', 'address 1', 'adresa', 'strada', 'line 1');
+  const cityIdx    = colIncludes('city', 'oras', 'localitate', 'town');
+  const stateIdx   = colIncludes('state', 'judet', 'provincia', 'province', 'region');
+  const countryIdx = colIncludes('country', 'tara');
+  const notesIdx   = colIncludes('notes', 'note', 'observatii', 'mentiuni');
+  const latIdx     = colPrefix('latitude', 'latitutde', 'latitudine');
+  const lngIdx     = colPrefix('longitude', 'longitutde', 'longitudine', 'lng', 'lon', 'long');
+
+  return dataRows.reduce<Customer[]>((acc, cells, idx) => {
+    const name = cells[nameIdx]?.trim();
+    if (!name) return acc;
+    const latRaw = latIdx >= 0 ? parseFloat((cells[latIdx] ?? '').replace(',', '.')) : NaN;
+    const lngRaw = lngIdx >= 0 ? parseFloat((cells[lngIdx] ?? '').replace(',', '.')) : NaN;
+    const c: Customer = {
+      id: `c_${idx}`,
+      name,
+      ...(addrIdx    >= 0 && cells[addrIdx]?.trim()    && { addressLine1: cells[addrIdx]!.trim() }),
+      ...(cityIdx    >= 0 && cells[cityIdx]?.trim()    && { city:         cells[cityIdx]!.trim() }),
+      ...(stateIdx   >= 0 && cells[stateIdx]?.trim()   && { state:        cells[stateIdx]!.trim() }),
+      ...(countryIdx >= 0 && cells[countryIdx]?.trim() && { country:      cells[countryIdx]!.trim() }),
+      ...(notesIdx   >= 0 && cells[notesIdx]?.trim()   && { notes:        cells[notesIdx]!.trim() }),
+      ...(!isNaN(latRaw) && { lat: latRaw }),
+      ...(!isNaN(lngRaw) && { lng: lngRaw }),
+    };
+    acc.push(c);
+    return acc;
+  }, []);
+}
+
 export function importCsv(file: File): Promise<Customer[]> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -52,69 +114,9 @@ export function importCsv(file: File): Promise<Customer[]> {
         const delimiter  = semicolons > commas ? ';' : ',';
 
         const headers = parseCSVLine(headerLine, delimiter);
+        const rows = lines.slice(1).map((line) => parseCSVLine(line, delimiter));
 
-        // Normalize: lowercase, collapse non-alphanumeric runs to a space.
-        const norm = (s: string) =>
-          s.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
-
-        // Substring match — keyword can appear anywhere in the header.
-        // Safe for long keywords (e.g. "company name") where false positives are unlikely.
-        const colIncludes = (...keywords: string[]) =>
-          headers.findIndex((h) => {
-            const n = norm(h);
-            return keywords.some((kw) => n === norm(kw) || n.includes(norm(kw)));
-          });
-
-        // Prefix match — header must START with the keyword.
-        // Used for short keywords like "lat"/"lon" that appear inside many Romanian words
-        // (e.g. "relatie", "plata") and would cause false positives with substring matching.
-        const colPrefix = (...keywords: string[]) =>
-          headers.findIndex((h) => {
-            const n = norm(h);
-            return keywords.some((kw) => {
-              const nkw = norm(kw);
-              return n === nkw || n.startsWith(nkw);
-            });
-          });
-
-        const nameIdx    = colIncludes('company name', 'company', 'denumire', 'nume firma', 'name');
-        if (nameIdx === -1) throw new Error(
-          'Could not find a company/name column. ' +
-          `Headers found: ${headers.join(', ')}`
-        );
-
-        const addrIdx    = colIncludes('address line 1', 'addres line 1', 'addr line 1', 'address 1', 'adresa', 'strada', 'line 1');
-        const cityIdx    = colIncludes('city', 'oras', 'localitate', 'town');
-        const stateIdx   = colIncludes('state', 'judet', 'provincia', 'province', 'region');
-        const countryIdx = colIncludes('country', 'tara');
-        const notesIdx   = colIncludes('notes', 'note', 'observatii', 'mentiuni');
-        const latIdx     = colPrefix('latitude', 'latitutde', 'latitudine');
-        const lngIdx     = colPrefix('longitude', 'longitutde', 'longitudine', 'lng', 'lon', 'long');
-
-        const customers: Customer[] = lines
-          .slice(1)
-          .reduce<Customer[]>((acc, line, idx) => {
-            const cells = parseCSVLine(line, delimiter);
-            const name = cells[nameIdx]?.trim();
-            if (!name) return acc;
-            const latRaw = latIdx >= 0 ? parseFloat(cells[latIdx]!.replace(',', '.')) : NaN;
-            const lngRaw = lngIdx >= 0 ? parseFloat(cells[lngIdx]!.replace(',', '.')) : NaN;
-            const c: Customer = {
-              id: `c_${idx}`,
-              name,
-              ...(addrIdx    >= 0 && cells[addrIdx]?.trim()    && { addressLine1: cells[addrIdx]!.trim() }),
-              ...(cityIdx    >= 0 && cells[cityIdx]?.trim()    && { city:         cells[cityIdx]!.trim() }),
-              ...(stateIdx   >= 0 && cells[stateIdx]?.trim()   && { state:        cells[stateIdx]!.trim() }),
-              ...(countryIdx >= 0 && cells[countryIdx]?.trim() && { country:      cells[countryIdx]!.trim() }),
-              ...(notesIdx   >= 0 && cells[notesIdx]?.trim()   && { notes:        cells[notesIdx]!.trim() }),
-              ...(!isNaN(latRaw) && { lat: latRaw }),
-              ...(!isNaN(lngRaw) && { lng: lngRaw }),
-            };
-            acc.push(c);
-            return acc;
-          }, []);
-
-        resolve(customers);
+        resolve(customersFromRows(headers, rows));
       } catch (err) {
         reject(err);
       }

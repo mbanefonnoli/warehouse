@@ -277,7 +277,10 @@ export default function SettingsView({
     setLoading(true);
     setError(null);
     try {
-      const parsed = await importCsv(file);
+      const isXlsx = /\.xlsx?$/i.test(file.name);
+      const parsed = isXlsx
+        ? await (await import('../importXlsx')).importXlsx(file)
+        : await importCsv(file);
       const config: ImportConfig = {
         fileName: file.name,
         lastUpdated: new Date().toISOString(),
@@ -319,7 +322,7 @@ export default function SettingsView({
 
   return (
     <div className="space-y-4 p-3">
-      {/* CSV info callout */}
+      {/* File format info callout */}
       <div className="flex gap-2 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-xs text-blue-700">
         <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
         <span>Expected columns: {CSV_COLUMNS.join(', ')}</span>
@@ -363,7 +366,7 @@ export default function SettingsView({
           <input
             ref={fileInputRef}
             type="file"
-            accept=".csv"
+            accept=".csv,.xlsx,.xls"
             className="sr-only"
             onChange={(e) => { const file = e.target.files?.[0]; if (file) processFile(file); e.target.value = ''; }}
           />
@@ -413,10 +416,10 @@ export default function SettingsView({
           onDragLeave={() => setDragging(false)}
           onDrop={onDrop}
         >
-          <input type="file" accept=".csv" className="sr-only"
+          <input type="file" accept=".csv,.xlsx,.xls" className="sr-only"
             onChange={(e) => { const file = e.target.files?.[0]; if (file) processFile(file); }} />
           {loading ? <Loader2 className="h-6 w-6 animate-spin text-gray-400" /> : <UploadCloud className="h-6 w-6 text-gray-400" />}
-          <p className="text-xs text-gray-500">Drop a Spoke/Circuit .csv or click to browse</p>
+          <p className="text-xs text-gray-500">Drop a Spoke/Circuit .csv or .xlsx or click to browse</p>
           {error && <p className="text-xs text-red-500">{error}</p>}
         </label>
       )}
