@@ -1,5 +1,5 @@
 import type { Customer, MatchResult } from '@spoke/shared';
-import type { ImportConfig, Settings } from './types';
+import type { CustomZone, ImportConfig, Settings } from './types';
 import { DEFAULT_SETTINGS } from './types';
 
 const MASTER_KEY = 'srb_master_list';
@@ -68,4 +68,29 @@ export async function loadPendingNames(): Promise<string[]> {
 export async function clearPendingNames(): Promise<void> {
   if (!store) return;
   await store.remove(PENDING_KEY);
+}
+
+const ZONES_KEY = 'customZones';
+const CITIES_KEY = 'availableCities';
+
+export async function loadCustomZones(): Promise<CustomZone[]> {
+  if (!store) return [];
+  const r = await store.get(ZONES_KEY);
+  return (Array.isArray(r[ZONES_KEY]) ? r[ZONES_KEY] : []) as CustomZone[];
+}
+
+export async function saveCustomZones(zones: CustomZone[]): Promise<void> {
+  if (!store) return;
+  await store.set({ [ZONES_KEY]: zones });
+}
+
+export async function loadAvailableCities(): Promise<string[]> {
+  if (!store) return [];
+  const r = await store.get(CITIES_KEY);
+  return (Array.isArray(r[CITIES_KEY]) ? r[CITIES_KEY] : []) as string[];
+}
+
+export async function saveAvailableCities(cities: string[]): Promise<void> {
+  if (!store) return;
+  await store.set({ [CITIES_KEY]: cities });
 }
