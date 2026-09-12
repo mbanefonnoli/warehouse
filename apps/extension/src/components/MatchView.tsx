@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { CheckCircle2, AlertCircle, XCircle, Search, Copy, Check, Download, ChevronRight, X } from 'lucide-react';
+import { CheckCircle2, AlertCircle, XCircle, Search, Copy, Check, Download, ChevronRight, X, Inbox } from 'lucide-react';
 import { matchName, sanitizeWhatsAppPaste } from '@spoke/shared';
 import type { Customer, MatchResult } from '@spoke/shared';
 import type { CustomZone, Settings } from '../types';
-import { formatAddress, buildCsvText, buildAddressesText, downloadZoneCsv, downloadCombinedCsv } from '../exportCsv';
+import { formatAddress, buildAddressesText, downloadZoneCsv, downloadCombinedCsv } from '../exportCsv';
 import { saveMatchSession, loadMatchSession, clearMatchSession, loadPendingNames, clearPendingNames, loadCustomZones } from '../storage';
 import { groupByZone } from '../zones';
 import type { ZoneGroup } from '../zones';
@@ -11,6 +11,7 @@ import type { ZoneGroup } from '../zones';
 interface Props {
   customers: Customer[];
   settings: Settings;
+  onOpenSettings: () => void;
 }
 
 const STATUS = {
@@ -110,7 +111,11 @@ function StopRow({
           {r.match && (
             <p className="text-[11px] text-gray-600 truncate">
               → {r.match.name}
-              {formatAddress(r.match) && <span className="text-gray-400"> · {formatAddress(r.match)}</span>}
+              {formatAddress(r.match) ? (
+                <span className="text-gray-400"> · {formatAddress(r.match)}</span>
+              ) : (
+                <span className="font-medium text-red-500"> · No address on file</span>
+              )}
             </p>
           )}
           {r.status === 'yellow' && (
@@ -187,7 +192,7 @@ function ZoneSection({
   );
 }
 
-export default function MatchView({ customers, settings }: Props) {
+export default function MatchView({ customers, settings, onOpenSettings }: Props) {
   const [input, setInput] = useState('');
   const [results, setResults] = useState<MatchResult[]>([]);
   const [customZones, setCustomZones] = useState<CustomZone[]>([]);
@@ -259,17 +264,20 @@ export default function MatchView({ customers, settings }: Props) {
     setInput('');
     setResults([]);
     clearMatchSession();
+    if (typeof chrome !== 'undefined' && chrome.action) {
+      chrome.action.setBadgeText({ text: '' });
+    }
   }
 
   function handleExportAll() {
     setExportingAll(true);
     const doExport = async () => {
       if (settings.exportMode === 'combined') {
-        downloadCombinedCsv(groups, settings.includeAllColumns);
+        downloadCombinedCsv(groups, settings.includeAllColumns, settings.csvDelimiter);
         await new Promise((r) => setTimeout(r, 500));
       } else {
         for (const group of groups) {
-          downloadZoneCsv(group.zoneName, group.results, settings.includeAllColumns);
+          downloadZoneCsv(group.zoneName, group.results, settings.includeAllColumns, settings.csvDelimiter);
           await new Promise((r) => setTimeout(r, 200));
         }
       }
@@ -289,13 +297,8 @@ export default function MatchView({ customers, settings }: Props) {
     });
   }
 
-  function copyCsvAll() {
-    const allResults = groups.flatMap((g) => g.results);
-    navigator.clipboard.writeText(buildCsvText(allResults, settings.includeAllColumns));
-  }
-
   return (
-    <div className="flex flex-col gap-3 p-3">
+    <div className="flex max-h-[560px] flex-col gap-3 overflow-y-auto p-3">
       {/* Location badge */}
       {hasLocations ? (
         <p className="text-xs text-gray-500">
@@ -303,7 +306,11 @@ export default function MatchView({ customers, settings }: Props) {
         </p>
       ) : (
         <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700">
-          No locations loaded — open Settings to import a CSV.
+          No locations loaded —{' '}
+          <button onClick={onOpenSettings} className="font-medium underline hover:text-amber-900">
+            open Settings to import a file
+          </button>
+          .
         </p>
       )}
 
@@ -325,6 +332,17 @@ export default function MatchView({ customers, settings }: Props) {
         Match Names
       </button>
 
+      {/* Empty state */}
+      {groups.length === 0 && (
+        <div className="flex flex-col items-center gap-1.5 rounded-lg border border-dashed border-gray-200 px-4 py-8 text-center">
+          <Inbox className="h-6 w-6 text-gray-300" />
+          <p className="text-xs font-medium text-gray-500">No names collected yet</p>
+          <p className="text-[10px] text-gray-400">
+            Paste names above, or right-click selected text on any page and choose “Add to Spoke Bridge”.
+          </p>
+        </div>
+      )}
+
       {/* Zone results */}
       {groups.length > 0 && (
         <>
@@ -345,7 +363,7 @@ export default function MatchView({ customers, settings }: Props) {
           <div className="flex items-center justify-between gap-2 border-t border-gray-100 pt-2">
             <div className="flex items-center gap-2 text-[10px] text-gray-400">
               <span>
-                {matchedCount} matched · {groups.length} {groups.length === 1 ? 'zone' : 'zones'}
+                {matchedCount} of {results.length} matched · {groups.length} {groups.length === 1 ? 'zone' : 'zones'}
                 {unresolvedCount > 0 && <span className="ml-1 text-amber-500">· {unresolvedCount} unresolved</span>}
               </span>
               <button onClick={handleClear} className="text-gray-400 underline hover:text-gray-600">

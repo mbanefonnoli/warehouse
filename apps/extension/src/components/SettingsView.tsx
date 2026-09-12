@@ -272,27 +272,59 @@ export default function SettingsView({
   const [dragging, setDragging] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [confirmingClear, setConfirmingClear] = useState(false);
+  const [pendingXlsx, setPendingXlsx] = useState<{ file: File; sheets: string[] } | null>(null);
+
+  async function finishImport(parsed: Customer[], fileName: string) {
+    const config: ImportConfig = {
+      fileName,
+      lastUpdated: new Date().toISOString(),
+      count: parsed.length,
+    };
+    await saveMasterList(parsed, config);
+
+    // Extract and store unique non-empty cities for zone configuration
+    const cities = [...new Set(parsed.map((c) => c.city?.trim()).filter(Boolean) as string[])].sort();
+    await saveAvailableCities(cities);
+
+    onFileReady(parsed, config);
+  }
 
   async function processFile(file: File) {
     setLoading(true);
     setError(null);
     try {
-      const isXlsx = /\.xlsx?$/i.test(file.name);
-      const parsed = isXlsx
-        ? await (await import('../importXlsx')).importXlsx(file)
-        : await importCsv(file);
-      const config: ImportConfig = {
-        fileName: file.name,
-        lastUpdated: new Date().toISOString(),
-        count: parsed.length,
-      };
-      await saveMasterList(parsed, config);
+      if (/\.xlsx?$/i.test(file.name)) {
+        const { listXlsxSheets, importXlsx } = await import('../importXlsx');
+        const sheets = await listXlsxSheets(file);
+        if (sheets.length > 1) {
+          setPendingXlsx({ file, sheets });
+          setLoading(false);
+          return;
+        }
+        const parsed = await importXlsx(file, sheets[0]);
+        await finishImport(parsed, file.name);
+      } else {
+        const parsed = await importCsv(file);
+        await finishImport(parsed, file.name);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not read file.');
+    } finally {
+      setLoading(false);
+    }
+  }
 
-      // Extract and store unique non-empty cities for zone configuration
-      const cities = [...new Set(parsed.map((c) => c.city?.trim()).filter(Boolean) as string[])].sort();
-      await saveAvailableCities(cities);
-
-      onFileReady(parsed, config);
+  async function chooseXlsxSheet(sheetName: string) {
+    if (!pendingXlsx) return;
+    const { file } = pendingXlsx;
+    setLoading(true);
+    setError(null);
+    try {
+      const { importXlsx } = await import('../importXlsx');
+      const parsed = await importXlsx(file, sheetName);
+      await finishImport(parsed, file.name);
+      setPendingXlsx(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not read file.');
     } finally {
@@ -302,6 +334,7 @@ export default function SettingsView({
 
   async function handleClear() {
     await clearMasterList();
+    setConfirmingClear(false);
     onCleared();
   }
 
@@ -318,15 +351,42 @@ export default function SettingsView({
     if (file) processFile(file);
   }, []);
 
-  const previewRows = customers.slice(0, 3);
+  const previewRows = customers.slice(0, 5);
 
   return (
-    <div className="space-y-4 p-3">
+    <div className="max-h-[560px] space-y-4 overflow-y-auto p-3">
       {/* File format info callout */}
       <div className="flex gap-2 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-xs text-blue-700">
         <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
         <span>Expected columns: {CSV_COLUMNS.join(', ')}</span>
       </div>
+
+      {/* Multi-sheet picker */}
+      {pendingXlsx && (
+        <div className="space-y-2 rounded-lg border border-[#1D9E75]/30 bg-emerald-50 p-3">
+          <p className="text-xs font-medium text-gray-700">
+            "{pendingXlsx.file.name}" has {pendingXlsx.sheets.length} sheets — which one has your locations?
+          </p>
+          <div className="flex flex-wrap gap-1.5">
+            {pendingXlsx.sheets.map((sheet) => (
+              <button
+                key={sheet}
+                disabled={loading}
+                onClick={() => chooseXlsxSheet(sheet)}
+                className="rounded border border-gray-200 bg-white px-2 py-1 text-xs text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+              >
+                {sheet}
+              </button>
+            ))}
+          </div>
+          <button
+            onClick={() => setPendingXlsx(null)}
+            className="text-[10px] text-gray-400 underline hover:text-gray-600"
+          >
+            Cancel
+          </button>
+        </div>
+      )}
 
       {/* File section */}
       {importConfig ? (
@@ -354,13 +414,30 @@ export default function SettingsView({
                 {loading ? <Loader2 className="h-3 w-3 animate-spin" /> : <UploadCloud className="h-3 w-3" />}
                 Update
               </button>
-              <button
-                onClick={handleClear}
-                className="flex items-center gap-1 rounded border border-red-100 bg-white px-2 py-1 text-xs text-red-500 hover:bg-red-50"
-              >
-                <Trash2 className="h-3 w-3" />
-                Clear
-              </button>
+              {confirmingClear ? (
+                <>
+                  <button
+                    onClick={handleClear}
+                    className="rounded border border-red-200 bg-red-50 px-2 py-1 text-xs font-medium text-red-600 hover:bg-red-100"
+                  >
+                    Confirm clear
+                  </button>
+                  <button
+                    onClick={() => setConfirmingClear(false)}
+                    className="rounded border border-gray-200 bg-white px-2 py-1 text-xs text-gray-500 hover:bg-gray-50"
+                  >
+                    Cancel
+                  </button>
+                </>
+              ) : (
+                <button
+                  onClick={() => setConfirmingClear(true)}
+                  className="flex items-center gap-1 rounded border border-red-100 bg-white px-2 py-1 text-xs text-red-500 hover:bg-red-50"
+                >
+                  <Trash2 className="h-3 w-3" />
+                  Clear
+                </button>
+              )}
             </div>
           </div>
           <input
@@ -399,9 +476,9 @@ export default function SettingsView({
                   ))}
                 </tbody>
               </table>
-              {customers.length > 3 && (
+              {customers.length > 5 && (
                 <p className="border-t border-gray-100 py-1 text-center text-[10px] text-gray-400">
-                  + {(customers.length - 3).toLocaleString()} more
+                  + {(customers.length - 5).toLocaleString()} more
                 </p>
               )}
             </div>
@@ -465,6 +542,16 @@ export default function SettingsView({
             >
               <option value="per-zone">One file per zone</option>
               <option value="combined">Single combined file</option>
+            </select>
+          </Row>
+          <Row label="CSV separator" hint="Semicolon for European Excel">
+            <select
+              value={settings.csvDelimiter}
+              onChange={(e) => patch({ csvDelimiter: e.target.value as Settings['csvDelimiter'] })}
+              className="rounded border border-gray-200 bg-white px-2 py-1 text-xs focus:outline-none"
+            >
+              <option value="comma">Comma (,)</option>
+              <option value="semicolon">Semicolon (;)</option>
             </select>
           </Row>
           <Row label="Include all columns">

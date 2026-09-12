@@ -11,12 +11,14 @@ export interface CustomZone {
 }
 
 export type ExportMode = 'per-zone' | 'combined';
+export type CsvDelimiter = 'comma' | 'semicolon';
 
 export interface Settings {
   matchSensitivity: 'strict' | 'normal' | 'loose';
   stripCompanySuffixes: boolean;
   includeAllColumns: boolean;
   exportMode: ExportMode;
+  csvDelimiter: CsvDelimiter;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -24,4 +26,5 @@ export const DEFAULT_SETTINGS: Settings = {
   stripCompanySuffixes: true,
   includeAllColumns: false,
   exportMode: 'per-zone',
+  csvDelimiter: 'comma',
 };

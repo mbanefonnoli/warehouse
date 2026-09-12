@@ -1,5 +1,10 @@
 import type { MatchResult } from '@spoke/shared';
+import type { CsvDelimiter } from './types';
 import type { ZoneGroup } from './zones';
+
+function delimChar(d: CsvDelimiter): string {
+  return d === 'semicolon' ? ';' : ',';
+}
 
 function csvCell(v: string | number | undefined | null): string {
   if (v === undefined || v === null) return '';
@@ -27,11 +32,12 @@ export function formatAddress(match: NonNullable<MatchResult['match']>): string 
   return [match.addressLine1, match.city].filter(Boolean).join(', ');
 }
 
-export function buildCsvText(results: MatchResult[], includeAllColumns = false): string {
+export function buildCsvText(results: MatchResult[], includeAllColumns = false, delimiter: CsvDelimiter = 'comma'): string {
+  const d = delimChar(delimiter);
   const BOM = '﻿';
   const header = includeAllColumns
-    ? 'Company Name,Address Line 1,City,State,Country,Notes,Latitude,Longitude'
-    : 'Company Name,Address Line 1,City,Latitude,Longitude';
+    ? ['Company Name', 'Address Line 1', 'City', 'State', 'Country', 'Notes', 'Latitude', 'Longitude'].join(d)
+    : ['Company Name', 'Address Line 1', 'City', 'Latitude', 'Longitude'].join(d);
 
   const rows = results
     .filter((r) => r.match !== null)
@@ -42,22 +48,23 @@ export function buildCsvText(results: MatchResult[], includeAllColumns = false):
           csvCell(m.name), csvCell(m.addressLine1), csvCell(m.city),
           csvCell(m.state), csvCell(m.country), csvCell(m.notes),
           csvCell(m.lat), csvCell(m.lng),
-        ].join(',');
+        ].join(d);
       }
       return [
         csvCell(m.name), csvCell(m.addressLine1), csvCell(m.city),
         csvCell(m.lat), csvCell(m.lng),
-      ].join(',');
+      ].join(d);
     });
 
   return BOM + [header, ...rows].join('\r\n');
 }
 
-export function buildCombinedCsvText(groups: ZoneGroup[], includeAllColumns = false): string {
+export function buildCombinedCsvText(groups: ZoneGroup[], includeAllColumns = false, delimiter: CsvDelimiter = 'comma'): string {
+  const d = delimChar(delimiter);
   const BOM = '﻿';
   const header = includeAllColumns
-    ? 'Zone,Company Name,Address Line 1,City,State,Country,Notes,Latitude,Longitude'
-    : 'Zone,Company Name,Address Line 1,City,Latitude,Longitude';
+    ? ['Zone', 'Company Name', 'Address Line 1', 'City', 'State', 'Country', 'Notes', 'Latitude', 'Longitude'].join(d)
+    : ['Zone', 'Company Name', 'Address Line 1', 'City', 'Latitude', 'Longitude'].join(d);
 
   const rows = groups.flatMap(({ zoneName, results }) =>
     results
@@ -69,12 +76,12 @@ export function buildCombinedCsvText(groups: ZoneGroup[], includeAllColumns = fa
             csvCell(zoneName), csvCell(m.name), csvCell(m.addressLine1), csvCell(m.city),
             csvCell(m.state), csvCell(m.country), csvCell(m.notes),
             csvCell(m.lat), csvCell(m.lng),
-          ].join(',');
+          ].join(d);
         }
         return [
           csvCell(zoneName), csvCell(m.name), csvCell(m.addressLine1), csvCell(m.city),
           csvCell(m.lat), csvCell(m.lng),
-        ].join(',');
+        ].join(d);
       }),
   );
 
@@ -89,17 +96,12 @@ export function buildAddressesText(results: MatchResult[]): string {
     .join('\n');
 }
 
-export function downloadCsvFile(results: MatchResult[], includeAllColumns = false): void {
+export function downloadZoneCsv(zoneName: string, results: MatchResult[], includeAllColumns = false, delimiter: CsvDelimiter = 'comma'): void {
   const date = new Date().toISOString().slice(0, 10);
-  triggerDownload(buildCsvText(results, includeAllColumns), `spoke-routes-${date}.csv`);
+  triggerDownload(buildCsvText(results, includeAllColumns, delimiter), `spoke-bridge-${slugify(zoneName)}-${date}.csv`);
 }
 
-export function downloadZoneCsv(zoneName: string, results: MatchResult[], includeAllColumns = false): void {
+export function downloadCombinedCsv(groups: ZoneGroup[], includeAllColumns = false, delimiter: CsvDelimiter = 'comma'): void {
   const date = new Date().toISOString().slice(0, 10);
-  triggerDownload(buildCsvText(results, includeAllColumns), `spoke-bridge-${slugify(zoneName)}-${date}.csv`);
-}
-
-export function downloadCombinedCsv(groups: ZoneGroup[], includeAllColumns = false): void {
-  const date = new Date().toISOString().slice(0, 10);
-  triggerDownload(buildCombinedCsvText(groups, includeAllColumns), `spoke-bridge-all-zones-${date}.csv`);
+  triggerDownload(buildCombinedCsvText(groups, includeAllColumns, delimiter), `spoke-bridge-all-zones-${date}.csv`);
 }

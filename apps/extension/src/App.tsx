@@ -54,6 +54,7 @@ export default function App() {
               <ArrowLeft className="h-4 w-4" />
             </button>
           )}
+          <img src="/icons/icon-48.png" alt="" className="h-4 w-4" />
           <span className="text-sm font-semibold" style={{ color: '#1D9E75' }}>
             Spoke Route Bridge
           </span>
@@ -71,7 +72,7 @@ export default function App() {
 
       {/* Body */}
       {view === 'match' ? (
-        <MatchView customers={customers} settings={settings} />
+        <MatchView customers={customers} settings={settings} onOpenSettings={() => setView('settings')} />
       ) : (
         <SettingsView
           customers={customers}

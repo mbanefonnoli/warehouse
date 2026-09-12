@@ -1,36 +1,45 @@
 import type { Customer } from '@spoke/shared';
 import { customersFromRows } from './importCsv';
 
-export async function importXlsx(file: File): Promise<Customer[]> {
-  // Loaded on demand — SheetJS is large and most imports are plain CSV.
-  const { read, utils } = await import('xlsx');
-
+function readFileAsArrayBuffer(file: File): Promise<ArrayBuffer> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
-    reader.onload = (e) => {
-      try {
-        const data = new Uint8Array(e.target!.result as ArrayBuffer);
-        const workbook = read(data, { type: 'array' });
-        const sheetName = workbook.SheetNames[0];
-        if (!sheetName) { resolve([]); return; }
-
-        const sheet = workbook.Sheets[sheetName]!;
-        // raw: false formats cells as displayed text (dates, numbers) so
-        // downstream parsing matches what a human sees / what CSV export would give.
-        const rows: string[][] = utils.sheet_to_json(sheet, { header: 1, raw: false, defval: '' });
-        const nonEmptyRows = rows.filter((r) => r.some((cell) => String(cell).trim()));
-        if (nonEmptyRows.length < 2) { resolve([]); return; }
-
-        const [headerRow, ...dataRows] = nonEmptyRows;
-        resolve(customersFromRows(
-          headerRow!.map((h) => String(h).trim()),
-          dataRows.map((row) => row.map((cell) => String(cell).trim())),
-        ));
-      } catch (err) {
-        reject(err);
-      }
-    };
+    reader.onload = (e) => resolve(e.target!.result as ArrayBuffer);
     reader.onerror = () => reject(new Error('Failed to read file'));
     reader.readAsArrayBuffer(file);
   });
+}
+
+async function readWorkbook(file: File) {
+  // Loaded on demand — SheetJS is large and most imports are plain CSV.
+  const { read } = await import('xlsx');
+  const buf = await readFileAsArrayBuffer(file);
+  return read(new Uint8Array(buf), { type: 'array' });
+}
+
+export async function listXlsxSheets(file: File): Promise<string[]> {
+  const workbook = await readWorkbook(file);
+  return workbook.SheetNames;
+}
+
+export async function importXlsx(file: File, sheetName?: string): Promise<Customer[]> {
+  const { utils } = await import('xlsx');
+  const workbook = await readWorkbook(file);
+  const name = sheetName ?? workbook.SheetNames[0];
+  if (!name) return [];
+
+  const sheet = workbook.Sheets[name];
+  if (!sheet) return [];
+
+  // raw: false formats cells as displayed text (dates, numbers) so
+  // downstream parsing matches what a human sees / what CSV export would give.
+  const rows: string[][] = utils.sheet_to_json(sheet, { header: 1, raw: false, defval: '' });
+  const nonEmptyRows = rows.filter((r) => r.some((cell) => String(cell).trim()));
+  if (nonEmptyRows.length < 2) return [];
+
+  const [headerRow, ...dataRows] = nonEmptyRows;
+  return customersFromRows(
+    headerRow!.map((h) => String(h).trim()),
+    dataRows.map((row) => row.map((cell) => String(cell).trim())),
+  );
 }

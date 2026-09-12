@@ -1,11 +1,22 @@
 import { describe, expect, it } from 'vitest';
 import { utils, write } from 'xlsx';
-import { importXlsx } from './importXlsx';
+import { importXlsx, listXlsxSheets } from './importXlsx';
 
 function xlsxFile(rows: (string | number)[][]): File {
   const sheet = utils.aoa_to_sheet(rows);
   const workbook = utils.book_new();
   utils.book_append_sheet(workbook, sheet, 'Sheet1');
+  const buf = write(workbook, { type: 'array', bookType: 'xlsx' });
+  return new File([buf], 'locations.xlsx', {
+    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  });
+}
+
+function multiSheetXlsxFile(sheets: Record<string, (string | number)[][]>): File {
+  const workbook = utils.book_new();
+  for (const [name, rows] of Object.entries(sheets)) {
+    utils.book_append_sheet(workbook, utils.aoa_to_sheet(rows), name);
+  }
   const buf = write(workbook, { type: 'array', bookType: 'xlsx' });
   return new File([buf], 'locations.xlsx', {
     type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -45,5 +56,20 @@ describe('importXlsx', () => {
       ['1', '2'],
     ]);
     await expect(importXlsx(file)).rejects.toThrow(/company\/name column/);
+  });
+
+  it('lists all sheet names and imports from a chosen non-first sheet', async () => {
+    const file = multiSheetXlsxFile({
+      Notes: [['Just some notes here']],
+      Locations: [
+        ['Company Name', 'City'],
+        ['Gamma Inc', 'Gotham'],
+      ],
+    });
+
+    expect(await listXlsxSheets(file)).toEqual(['Notes', 'Locations']);
+
+    const customers = await importXlsx(file, 'Locations');
+    expect(customers).toEqual([expect.objectContaining({ name: 'Gamma Inc', city: 'Gotham' })]);
   });
 });
