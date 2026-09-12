@@ -1,7 +1,7 @@
 import type { MatchResult } from '@spoke/shared';
 import type { CustomZone } from './types';
 
-function normCity(s: string): string {
+export function normCity(s: string): string {
   return s
     .toLowerCase()
     .normalize('NFD')

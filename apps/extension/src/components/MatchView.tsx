@@ -157,7 +157,7 @@ function ZoneSection({
         <ChevronRight
           className={`h-3.5 w-3.5 shrink-0 text-gray-400 transition-transform ${collapsed ? '' : 'rotate-90'}`}
         />
-        <span className="flex-1 text-xs font-semibold text-gray-700">{group.zoneName}</span>
+        <span className="flex-1 text-[13px] font-semibold text-gray-700">{group.zoneName}</span>
         <span className="rounded-full bg-gray-200 px-1.5 py-0.5 text-[10px] font-medium text-gray-500">
           {group.results.length} {group.results.length === 1 ? 'stop' : 'stops'}
         </span>

@@ -4,6 +4,7 @@ import type { Customer } from '@spoke/shared';
 import type { CustomZone, ImportConfig, Settings } from '../types';
 import { importCsv, CSV_COLUMNS } from '../importCsv';
 import { saveMasterList, clearMasterList, saveSettings, loadCustomZones, saveCustomZones, loadAvailableCities, saveAvailableCities } from '../storage';
+import { normCity } from '../zones';
 
 interface Props {
   customers: Customer[];
@@ -52,17 +53,17 @@ function ZonesSection() {
   const usedElsewhere = new Set(
     zones
       .filter((z) => z.id !== draft?.id)
-      .flatMap((z) => z.cities.map((c) => c.toLowerCase())),
+      .flatMap((z) => z.cities.map((c) => normCity(c))),
   );
-  const draftCitySet = new Set(draft?.cities.map((c) => c.toLowerCase()) ?? []);
+  const draftCitySet = new Set(draft?.cities.map((c) => normCity(c)) ?? []);
   const selectableCities = availableCities.filter(
-    (c) => !usedElsewhere.has(c.toLowerCase()) && !draftCitySet.has(c.toLowerCase()),
+    (c) => !usedElsewhere.has(normCity(c)) && !draftCitySet.has(normCity(c)),
   );
 
   function addCityToDraft() {
     const city = cityInput.trim();
     if (!city || !draft) return;
-    if (draftCitySet.has(city.toLowerCase())) { setCityInput(''); return; }
+    if (draftCitySet.has(normCity(city))) { setCityInput(''); return; }
     setDraft({ ...draft, cities: [...draft.cities, city] });
     setCityInput('');
     cityInputRef.current?.focus();
@@ -283,8 +284,17 @@ export default function SettingsView({
     };
     await saveMasterList(parsed, config);
 
-    // Extract and store unique non-empty cities for zone configuration
-    const cities = [...new Set(parsed.map((c) => c.city?.trim()).filter(Boolean) as string[])].sort();
+    // Extract unique non-empty cities for zone configuration — dedupe
+    // case/diacritics-insensitively so "Constanta" and "CONSTANȚA" collapse
+    // into a single selectable entry, keeping the first-seen spelling.
+    const seen = new Map<string, string>();
+    for (const c of parsed) {
+      const raw = c.city?.trim();
+      if (!raw) continue;
+      const key = normCity(raw);
+      if (!seen.has(key)) seen.set(key, raw);
+    }
+    const cities = [...seen.values()].sort();
     await saveAvailableCities(cities);
 
     onFileReady(parsed, config);
@@ -534,16 +544,6 @@ export default function SettingsView({
       <div>
         <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-gray-400">Export</p>
         <div className="divide-y divide-gray-100 overflow-hidden rounded-lg border border-gray-100">
-          <Row label="Export mode" hint="One file per zone or all zones in a single file">
-            <select
-              value={settings.exportMode}
-              onChange={(e) => patch({ exportMode: e.target.value as Settings['exportMode'] })}
-              className="rounded border border-gray-200 bg-white px-2 py-1 text-xs focus:outline-none"
-            >
-              <option value="per-zone">One file per zone</option>
-              <option value="combined">Single combined file</option>
-            </select>
-          </Row>
           <Row label="CSV separator" hint="Semicolon for European Excel">
             <select
               value={settings.csvDelimiter}
@@ -552,6 +552,16 @@ export default function SettingsView({
             >
               <option value="comma">Comma (,)</option>
               <option value="semicolon">Semicolon (;)</option>
+            </select>
+          </Row>
+          <Row label="Export mode" hint="One file per zone or all zones in a single file">
+            <select
+              value={settings.exportMode}
+              onChange={(e) => patch({ exportMode: e.target.value as Settings['exportMode'] })}
+              className="rounded border border-gray-200 bg-white px-2 py-1 text-xs focus:outline-none"
+            >
+              <option value="per-zone">One file per zone</option>
+              <option value="combined">Single combined file</option>
             </select>
           </Row>
           <Row label="Include all columns">
