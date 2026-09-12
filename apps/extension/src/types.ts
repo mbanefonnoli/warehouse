@@ -1,3 +1,5 @@
+import type { MatchResult } from '@spoke/shared';
+
 export interface ImportConfig {
   fileName: string;
   lastUpdated: string; // ISO date string
@@ -28,3 +30,26 @@ export const DEFAULT_SETTINGS: Settings = {
   exportMode: 'per-zone',
   csvDelimiter: 'comma',
 };
+
+export const FREE_NAME_CAP = 10;
+
+export interface License {
+  key: string;
+  status: 'active' | 'inactive';
+  instanceId: string | null;
+  activatedAt: string;
+  validatedAt: string;
+}
+
+export interface HistoryZoneSummary {
+  name: string;
+  count: number;
+}
+
+export interface HistoryEntry {
+  id: string;
+  timestamp: string; // ISO date string
+  totalMatched: number;
+  zones: HistoryZoneSummary[];
+  matchedStops: MatchResult[];
+}

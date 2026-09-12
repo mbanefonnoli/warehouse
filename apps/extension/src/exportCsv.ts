@@ -105,3 +105,9 @@ export function downloadCombinedCsv(groups: ZoneGroup[], includeAllColumns = fal
   const date = new Date().toISOString().slice(0, 10);
   triggerDownload(buildCombinedCsvText(groups, includeAllColumns, delimiter), `spoke-bridge-all-zones-${date}.csv`);
 }
+
+/** Single-file flat export for the free tier (no zone grouping). */
+export function downloadFlatCsv(results: MatchResult[], includeAllColumns = false, delimiter: CsvDelimiter = 'comma'): void {
+  const date = new Date().toISOString().slice(0, 10);
+  triggerDownload(buildCsvText(results, includeAllColumns, delimiter), `spoke-bridge-${date}.csv`);
+}

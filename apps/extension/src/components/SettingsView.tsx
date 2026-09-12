@@ -1,18 +1,22 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { UploadCloud, Loader2, Info, Trash2, CheckCircle2, Plus, X, Pencil, Check } from 'lucide-react';
+import { UploadCloud, Loader2, Info, Trash2, CheckCircle2, Plus, X, Pencil, Check, Lock } from 'lucide-react';
 import type { Customer } from '@spoke/shared';
-import type { CustomZone, ImportConfig, Settings } from '../types';
+import type { CustomZone, ImportConfig, License, Settings } from '../types';
 import { importCsv, CSV_COLUMNS } from '../importCsv';
 import { saveMasterList, clearMasterList, saveSettings, loadCustomZones, saveCustomZones, loadAvailableCities, saveAvailableCities } from '../storage';
 import { normCity } from '../zones';
+import { track } from '../analytics';
+import LicenseSection from './LicenseSection';
 
 interface Props {
   customers: Customer[];
   importConfig: ImportConfig | null;
   settings: Settings;
+  license: License | null;
   onFileReady: (customers: Customer[], config: ImportConfig) => void;
   onCleared: () => void;
   onSettingsChange: (patch: Partial<Settings>) => void;
+  onLicenseChange: (license: License | null) => void;
 }
 
 function Row({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
@@ -265,10 +269,13 @@ export default function SettingsView({
   customers,
   importConfig,
   settings,
+  license,
   onFileReady,
   onCleared,
   onSettingsChange,
+  onLicenseChange,
 }: Props) {
+  const isPro = license?.status === 'active';
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -297,6 +304,7 @@ export default function SettingsView({
     const cities = [...seen.values()].sort();
     await saveAvailableCities(cities);
 
+    track('database_uploaded', { location_count: parsed.length });
     onFileReady(parsed, config);
   }
 
@@ -365,6 +373,9 @@ export default function SettingsView({
 
   return (
     <div className="max-h-[560px] space-y-4 overflow-y-auto p-3">
+      {/* License */}
+      <LicenseSection license={license} onLicenseChange={onLicenseChange} />
+
       {/* File format info callout */}
       <div className="flex gap-2 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-xs text-blue-700">
         <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
@@ -511,8 +522,18 @@ export default function SettingsView({
         </label>
       )}
 
-      {/* Custom delivery zones */}
-      <ZonesSection />
+      {/* Custom delivery zones — Pro only */}
+      {isPro ? (
+        <ZonesSection />
+      ) : (
+        <div>
+          <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-gray-400">Delivery Zones</p>
+          <div className="flex items-center gap-2 rounded-lg border border-gray-100 bg-gray-50 px-3 py-3 text-xs text-gray-400">
+            <Lock className="h-3.5 w-3.5 shrink-0" />
+            <span>Pro feature — group cities into named delivery routes.</span>
+          </div>
+        </div>
+      )}
 
       {/* Matching settings */}
       <div>
@@ -554,16 +575,18 @@ export default function SettingsView({
               <option value="semicolon">Semicolon (;)</option>
             </select>
           </Row>
-          <Row label="Export mode" hint="One file per zone or all zones in a single file">
-            <select
-              value={settings.exportMode}
-              onChange={(e) => patch({ exportMode: e.target.value as Settings['exportMode'] })}
-              className="rounded border border-gray-200 bg-white px-2 py-1 text-xs focus:outline-none"
-            >
-              <option value="per-zone">One file per zone</option>
-              <option value="combined">Single combined file</option>
-            </select>
-          </Row>
+          {isPro && (
+            <Row label="Export mode" hint="One file per zone or all zones in a single file">
+              <select
+                value={settings.exportMode}
+                onChange={(e) => patch({ exportMode: e.target.value as Settings['exportMode'] })}
+                className="rounded border border-gray-200 bg-white px-2 py-1 text-xs focus:outline-none"
+              >
+                <option value="per-zone">One file per zone</option>
+                <option value="combined">Single combined file</option>
+              </select>
+            </Row>
+          )}
           <Row label="Include all columns">
             <input
               type="checkbox"

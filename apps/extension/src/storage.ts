@@ -1,5 +1,5 @@
 import type { Customer, MatchResult } from '@spoke/shared';
-import type { CustomZone, ImportConfig, Settings } from './types';
+import type { CustomZone, HistoryEntry, ImportConfig, License, Settings } from './types';
 import { DEFAULT_SETTINGS } from './types';
 
 const MASTER_KEY = 'srb_master_list';
@@ -93,4 +93,38 @@ export async function loadAvailableCities(): Promise<string[]> {
 export async function saveAvailableCities(cities: string[]): Promise<void> {
   if (!store) return;
   await store.set({ [CITIES_KEY]: cities });
+}
+
+const LICENSE_KEY = 'srb_license';
+
+export async function loadLicense(): Promise<License | null> {
+  if (!store) return null;
+  const r = await store.get(LICENSE_KEY);
+  return (r[LICENSE_KEY] as License) ?? null;
+}
+
+export async function saveLicense(license: License): Promise<void> {
+  if (!store) return;
+  await store.set({ [LICENSE_KEY]: license });
+}
+
+export async function clearLicense(): Promise<void> {
+  if (!store) return;
+  await store.remove(LICENSE_KEY);
+}
+
+const HISTORY_KEY = 'srb_match_history';
+const HISTORY_LIMIT = 30;
+
+export async function loadMatchHistory(): Promise<HistoryEntry[]> {
+  if (!store) return [];
+  const r = await store.get(HISTORY_KEY);
+  return (Array.isArray(r[HISTORY_KEY]) ? r[HISTORY_KEY] : []) as HistoryEntry[];
+}
+
+export async function appendMatchHistory(entry: HistoryEntry): Promise<void> {
+  if (!store) return;
+  const existing = await loadMatchHistory();
+  const updated = [entry, ...existing].slice(0, HISTORY_LIMIT);
+  await store.set({ [HISTORY_KEY]: updated });
 }

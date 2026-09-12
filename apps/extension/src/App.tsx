@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
 import { Settings as SettingsIcon, ArrowLeft } from 'lucide-react';
 import type { Customer } from '@spoke/shared';
-import type { ImportConfig, Settings } from './types';
+import type { ImportConfig, License, Settings } from './types';
 import { DEFAULT_SETTINGS } from './types';
-import { loadMasterList, loadSettings } from './storage';
+import { loadMasterList, loadSettings, loadLicense } from './storage';
 import MatchView from './components/MatchView';
 import SettingsView from './components/SettingsView';
 
@@ -14,6 +14,7 @@ export default function App() {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [importConfig, setImportConfig] = useState<ImportConfig | null>(null);
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
+  const [license, setLicense] = useState<License | null>(null);
 
   useEffect(() => {
     loadMasterList().then((saved) => {
@@ -23,6 +24,7 @@ export default function App() {
       }
     });
     loadSettings().then(setSettings);
+    loadLicense().then(setLicense);
   }, []);
 
   function handleFileReady(list: Customer[], config: ImportConfig) {
@@ -39,6 +41,8 @@ export default function App() {
   function handleSettingsChange(patch: Partial<Settings>) {
     setSettings((prev) => ({ ...prev, ...patch }));
   }
+
+  const isPro = license?.status === 'active';
 
   return (
     <div className="flex w-[400px] flex-col bg-white" style={{ minHeight: 200 }}>
@@ -72,15 +76,22 @@ export default function App() {
 
       {/* Body */}
       {view === 'match' ? (
-        <MatchView customers={customers} settings={settings} onOpenSettings={() => setView('settings')} />
+        <MatchView
+          customers={customers}
+          settings={settings}
+          isPro={isPro}
+          onOpenSettings={() => setView('settings')}
+        />
       ) : (
         <SettingsView
           customers={customers}
           importConfig={importConfig}
           settings={settings}
+          license={license}
           onFileReady={handleFileReady}
           onCleared={handleCleared}
           onSettingsChange={handleSettingsChange}
+          onLicenseChange={setLicense}
         />
       )}
     </div>
